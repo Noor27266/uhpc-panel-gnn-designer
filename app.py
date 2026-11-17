@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from streamlit_js_eval import streamlit_js_eval
 
 from uhpc_core import (BASELINE, DISP_LIMIT, MODELS, SR_LIMIT, PanelSurrogate)
 
@@ -20,29 +21,37 @@ st.markdown(f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap');
 html, body, [class*="css"], .stMarkdown, .stText, button, input, select {{ font-family: 'Inter', sans-serif; }}
-.block-container {{ padding-top: 1.4rem; padding-bottom: 2rem; max-width: 1500px; }}
-section[data-testid="stSidebar"] {{ background: #ffffff; border-right: 1px solid #d8dee4; }}
-section[data-testid="stSidebar"] h3 {{ color: #0d1b2a; }}
+.block-container {{ padding-top: 2.6rem; padding-bottom: 1rem; max-width: 1600px; }}
+header[data-testid="stHeader"] {{ background: transparent; }}
+div[data-testid="stElementContainer"]:has(iframe[title*="streamlit_js_eval"]) {{ position: absolute; height: 0; overflow: hidden; }}
+@media (max-height: 850px), (max-width: 1400px) {{
+  .hero p, .hero .tags {{ display: none; }}
+  .hero {{ padding: 9px 18px; }}
+  .hero h1 {{ font-size: 1.12rem; }}
+  .kpi .sub {{ display: none; }}
+  .kpi .val {{ font-size: 1.25rem; }}
+  .block-container {{ padding-top: 2.2rem; }}
+}}
 .side-title {{ font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: #1f6feb;
-  font-weight: 700; margin: 1.0rem 0 0.25rem 0; border-top: 1px solid #eef1f4; padding-top: 0.7rem; }}
+  font-weight: 700; margin: 1.0rem 0 0.25rem 0; border-top: 1px solid rgba(128,128,128,0.25); padding-top: 0.7rem; }}
 .hero {{ background: linear-gradient(120deg, #0d1b2a 0%, #1b3a5c 55%, #1f6feb 100%); border-radius: 16px;
-  padding: 22px 28px; color: white; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; }}
-.hero h1 {{ font-size: 1.65rem; margin: 0; font-weight: 700; color: white; }}
-.hero p {{ margin: 4px 0 0 0; color: #c9dcf2; font-size: 0.93rem; }}
+  padding: 12px 22px; color: white; margin-bottom: 10px; gap: 16px; flex-wrap: wrap; display: flex; justify-content: space-between; align-items: center; }}
+.hero h1 {{ font-size: 1.3rem; margin: 0; font-weight: 700; color: white; }}
+.hero p {{ margin: 2px 0 0 0; color: #c9dcf2; font-size: 0.82rem; }}
 .hero .tag {{ background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.25); border-radius: 999px;
-  padding: 5px 13px; font-size: 0.8rem; color: #fff; margin-left: 6px; white-space: nowrap; }}
-.kpi {{ background: white; border: 1px solid #d8dee4; border-radius: 14px; padding: 14px 16px 12px 16px;
+  padding: 4px 11px; font-size: 0.75rem; color: #fff; margin: 2px 0 2px 6px; display: inline-block; white-space: nowrap; }}
+.kpi {{ background: white; border: 1px solid #d8dee4; border-radius: 12px; padding: 9px 14px 8px 14px;
   box-shadow: 0 1px 2px rgba(31,35,40,0.04); height: 100%; }}
 .kpi .lab {{ font-size: 0.74rem; color: {MUTED}; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }}
-.kpi .val {{ font-size: 1.75rem; font-weight: 700; color: {INK}; line-height: 1.25; font-family: 'Inter'; }}
+.kpi .val {{ font-size: 1.4rem; font-weight: 700; color: {INK}; line-height: 1.25; font-family: 'Inter'; }}
 .kpi .val small {{ font-size: 0.9rem; color: {MUTED}; font-weight: 500; }}
-.kpi .sub {{ font-size: 0.8rem; color: {MUTED}; margin-top: 2px; }}
-.bar {{ height: 6px; background: #eef1f4; border-radius: 4px; margin-top: 8px; overflow: hidden; }}
+.kpi .sub {{ font-size: 0.76rem; color: {MUTED}; margin-top: 2px; }}
+.bar {{ height: 5px; background: #eef1f4; border-radius: 4px; margin-top: 6px; overflow: hidden; }}
 .bar > div {{ height: 100%; border-radius: 4px; }}
 .pill {{ display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }}
 .pass {{ background: #dafbe1; color: {OK}; }} .fail {{ background: #ffebe9; color: {BAD}; }}
 .warn {{ background: #fff8c5; color: #7d4e00; }}
-.verdict {{ border-radius: 14px; padding: 14px 18px; font-weight: 600; font-size: 1.02rem; margin: 2px 0 6px 0; }}
+.verdict {{ border-radius: 12px; padding: 7px 14px; font-weight: 600; font-size: 0.92rem; margin: 2px 0 2px 0; }}
 .v-ok {{ background: #dafbe1; color: {OK}; border: 1px solid #aceebb; }}
 .v-bad {{ background: #ffebe9; color: {BAD}; border: 1px solid #ffcecb; }}
 .card {{ background: white; border: 1px solid #d8dee4; border-radius: 14px; padding: 14px 18px; }}
@@ -105,6 +114,14 @@ with st.sidebar:
         st.session_state["pending"] = dict(defaults); st.rerun()
 
 fname = MODELS[model_label]
+
+# browser window size, used to fit the 3D view to the screen
+_vp = streamlit_js_eval(js_expressions="[window.parent.innerWidth, window.parent.innerHeight]", key="viewport")
+if isinstance(_vp, list) and len(_vp) == 2 and _vp[1]:
+    st.session_state["vp"] = _vp
+VW, VH = st.session_state.get("vp", [1600, 900])
+COMPACT = VH <= 850 or VW <= 1400
+PANEL_H = int(max(320, VH - (395 if COMPACT else 470)))
 res = run_prediction(fname, box, ang, mat, S, Z, X)
 base = run_prediction(fname, BASELINE["box"], BASELINE["angle"], BASELINE["material"], S, Z, X)
 ok_d = res["max_disp"] <= disp_lim; ok_s = res["max_sr"] <= sr_lim; ok = ok_d and ok_s
@@ -123,7 +140,7 @@ if fname == "phase1_finetuned.pt" and (box != BASELINE["box"] or ang != BASELINE
 st.markdown(f"""
 <div class="hero"><div><h1>UHPC Wall Panel · GNN Structural Designer</h1>
 <p>Instant prediction of displacement, member stress ratio and support reactions for a 167-node, 244-member steel frame with 109 UHPC plates</p></div>
-<div><span class="tag">{model_label.split(':')[0]}</span><span class="tag">{box} + {ang} + {mat}</span><span class="tag">S={S:.2f} · Z={Z:.2f} · X={X:.2f}</span></div></div>
+<div class="tags"><span class="tag">{model_label.split(':')[0]}</span><span class="tag">{box} + {ang} + {mat}</span><span class="tag">S={S:.2f} · Z={Z:.2f} · X={X:.2f}</span></div></div>
 """, unsafe_allow_html=True)
 for w in warn:
     st.warning(w, icon="⚠️")
@@ -152,14 +169,14 @@ kpi(k4, "Change vs baseline", f"{dw:+,.0f}", "kg",
 v_cls = "v-ok" if ok else "v-bad"
 v_txt = ("✔ Design PASSES both limits" if ok else
          "✘ Design FAILS: " + " and ".join(t for t, f in [("displacement", not ok_d), ("stress ratio", not ok_s)] if f))
-st.markdown(f'<div class="verdict {v_cls}" style="margin-top:14px">{v_txt} '
+st.markdown(f'<div class="verdict {v_cls}" style="margin-top:10px">{v_txt} '
             f'<span style="font-weight:500">· utilisation: displacement {res["max_disp"] / disp_lim * 100:.0f} %, '
             f'stress {res["max_sr"] / sr_lim * 100:.0f} %</span></div>', unsafe_allow_html=True)
 
 # =============================================================================
 # 3D panel
 # =============================================================================
-def panel_figure(r, field, deformed, amp, show_plates, show_ids):
+def panel_figure(r, field, deformed, amp, show_plates, show_ids, height=640):
     geo = base_model.geo
     xyz = np.array(r["xyz"]) / 1000.0
     disp = np.array(r["disp"])
@@ -238,7 +255,7 @@ def panel_figure(r, field, deformed, amp, show_plates, show_ids):
     ax = dict(showbackground=True, backgroundcolor="#f6f8fa", gridcolor="#dfe3e8", zerolinecolor="#dfe3e8",
               tickfont=dict(size=10), title_font=dict(size=12))
     fig.update_layout(
-        height=680, margin=dict(l=0, r=0, t=30, b=0), paper_bgcolor="white",
+        height=height, margin=dict(l=0, r=0, t=8, b=0), paper_bgcolor="white",
         scene=dict(xaxis=dict(title="X (m)", **ax), yaxis=dict(title="Y (m)", **ax), zaxis=dict(title="Z (m)", **ax),
                    aspectmode="data", camera=dict(eye=dict(x=1.05, y=-1.75, z=0.8), up=dict(x=0, y=0, z=1), projection=dict(type="orthographic"))),
         legend=dict(orientation="h", y=1.02, x=0.0, font=dict(size=12), bgcolor="rgba(255,255,255,0.7)"),
@@ -251,13 +268,13 @@ tab3d, tabR, tabB, tabO, tabM = st.tabs(["🧱  3D Panel", "📌  Support reacti
 
 with tab3d:
     c1, c2, c3, c4, c5 = st.columns([1.4, 1, 1.2, 1, 1])
-    field = c1.radio("Colour members by", ["Stress ratio", "Displacement"], horizontal=True)
+    field = c1.radio("Colour members by", ["Stress ratio", "Displacement"], horizontal=True, label_visibility="collapsed")
     deformed = c2.toggle("Deformed shape", value=False)
-    amp = c3.slider("Amplification", 10, 500, 100, 10, disabled=not deformed)
+    amp = c3.slider("Amplification", 10, 500, 100, 10, disabled=not deformed, label_visibility="collapsed", format="×%d")
     show_plates = c4.toggle("UHPC plates", value=True)
     show_ids = c5.toggle("Node numbers", value=False)
-    st.plotly_chart(panel_figure(res, field, deformed, amp, show_plates, show_ids), width="stretch",
-                    config=dict(displaylogo=False, toImageButtonOptions=dict(format="png", scale=2, filename="uhpc_panel")))
+    st.plotly_chart(panel_figure(res, field, deformed, amp, show_plates, show_ids, PANEL_H), width="stretch", key="panel3d",
+                    theme=None, config=dict(displaylogo=False, responsive=True, toImageButtonOptions=dict(format="png", scale=2, filename="uhpc_panel")))
     st.caption("Drag to rotate, scroll to zoom, hover a member or support for values. Thick lines: box main frame; "
                "thin lines: angle secondary members.")
 
@@ -268,13 +285,13 @@ with tab3d:
     fig_h.update_layout(title=dict(text="Member stress ratio distribution", font=dict(size=14)), height=300,
                         margin=dict(l=10, r=10, t=40, b=10), xaxis_title="Stress ratio", yaxis_title="Members",
                         plot_bgcolor="white", bargap=0.05)
-    g1.plotly_chart(fig_h, width="stretch")
+    g1.plotly_chart(fig_h, width="stretch", theme=None)
     comp = pd.DataFrame({"Component": ["DX", "DY", "DZ", "DXY", "DXYZ"], "Max |d| (mm)": np.abs(d).max(axis=0)})
     fig_c = go.Figure(go.Bar(x=comp.Component, y=comp["Max |d| (mm)"], marker_color=["#8fb3d9"] * 4 + [ACCENT],
                              text=[f"{v:.2f}" for v in comp["Max |d| (mm)"]], textposition="outside"))
     fig_c.update_layout(title=dict(text="Maximum nodal displacement by component", font=dict(size=14)), height=300,
                         margin=dict(l=10, r=10, t=40, b=10), yaxis_title="mm", plot_bgcolor="white")
-    g2.plotly_chart(fig_c, width="stretch")
+    g2.plotly_chart(fig_c, width="stretch", theme=None)
 
 # =============================================================================
 # Reactions
@@ -309,7 +326,7 @@ with tabR:
         fig_r.update_layout(barmode="group", height=330, margin=dict(l=10, r=10, t=30, b=10), plot_bgcolor="white",
                             xaxis_title="Support node", yaxis_title="kN", legend=dict(orientation="h", y=1.12),
                             xaxis=dict(type="category"))
-        st.plotly_chart(fig_r, width="stretch")
+        st.plotly_chart(fig_r, width="stretch", theme=None)
         st.dataframe(T.style.format(fmt), width="stretch", hide_index=True, height=420)
         st.download_button("⬇ Download reactions (CSV)", T.to_csv(index=False).encode(), "uhpc_support_reactions.csv",
                            "text/csv")
@@ -358,7 +375,7 @@ with tabB:
         fb.add_hline(y=1.0, line_dash="dash", line_color=BAD)
         fb.update_layout(barmode="group", height=340, margin=dict(l=10, r=10, t=30, b=10), plot_bgcolor="white",
                          yaxis_title="Utilisation / weight ratio", legend=dict(orientation="h", y=1.12))
-        st.plotly_chart(fb, width="stretch")
+        st.plotly_chart(fb, width="stretch", theme=None)
     sb = np.array(base["sr"]); sc = np.array(res["sr"])
     fs = go.Figure(go.Scatter(x=sb, y=sc, mode="markers", marker=dict(size=6, color=np.where(base_model.pids == 1, ACCENT, "#f4a259")),
                               text=[f"element {e}" for e in base_model.geo["beam_eids"]],
@@ -368,7 +385,7 @@ with tabB:
     fs.update_layout(title=dict(text="Member stress ratio: current vs baseline (blue box, orange angle)", font=dict(size=14)),
                      height=360, showlegend=False, plot_bgcolor="white", margin=dict(l=10, r=10, t=40, b=10),
                      xaxis_title="Baseline SR", yaxis_title="Current SR")
-    st.plotly_chart(fs, width="stretch")
+    st.plotly_chart(fs, width="stretch", theme=None)
 
 # =============================================================================
 # Optimiser
@@ -428,7 +445,7 @@ with tabO:
                              height=420, plot_bgcolor="white", margin=dict(l=10, r=10, t=40, b=10),
                              xaxis_title="Steel weight (kg)", yaxis_title="Max displacement (mm)",
                              yaxis=dict(range=[0, cfg[3] * 2]), legend=dict(orientation="h", y=-0.18, x=0.6))
-            t2.plotly_chart(fo, width="stretch")
+            t2.plotly_chart(fo, width="stretch", theme=None)
 
 # =============================================================================
 # Model information
