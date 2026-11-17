@@ -1,4 +1,4 @@
-# UHPC Panel GNN Designer
+# UHPC-IDS V1.0: Intelligent Design Software for UHPC Wall Panels
 
 An interactive Streamlit app for the steel-framed UHPC wall panel. A graph neural network (GNN) surrogate of the FEM model predicts, in well under a second:
 
@@ -8,7 +8,7 @@ An interactive Streamlit app for the steel-framed UHPC wall panel. A graph neura
 
 The panel is drawn in 3D with its UHPC plates, supports and members, coloured by stress ratio or displacement. The deformed shape can be shown.
 
-![Panel view](screenshots/01_panel_stress_ratio.png)
+![Panel view](screenshots/01_main.png)
 
 ## What the app does
 
@@ -47,7 +47,7 @@ Both models are a pure-PyTorch edge-aware GAT (3 layers x 4 heads, 772,623 param
 | MIDAS baseline, base model | 3.6184 mm, 0.6205 | 3.6184 mm, 0.6205 |
 | Step07 test points after fine-tuning (S=2; Z=1.4; X=1.4; all three) | 25.2800 / 6.8592 / 8.9958 / 93.3713 mm | identical |
 
-MIDAS Gen FEM for the baseline gives 3.4495 mm and 0.5981.
+For the baseline panel, MIDAS Gen gives 3.3015 mm and 0.6100, and the Python FEM of Module II gives 3.4495 mm and 0.5981.
 
 Section-property mapping used by the training data (Step04): box Iy = Ix_mm4, Iz = Iz_mm4; angle Iy = Iz_mm4, Iz = Ix_mm4.
 

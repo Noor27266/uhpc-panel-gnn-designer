@@ -8,9 +8,9 @@ Run:  python validate_models.py
 import json
 from pathlib import Path
 import numpy as np
-from uhpc_core import PanelSurrogate, build_meta, ROOT
+from uhpc_core import PanelSurrogate, build_meta, ROOT, find_file
 
-ref = json.load(open(ROOT / "data" / "validation_reference.json"))
+ref = json.load(open(find_file("data", "validation_reference.json")))
 out = {}
 
 base = PanelSurrogate("phase1_base.pt")
@@ -29,7 +29,7 @@ print(f"[1] Step05 test set, {len(rows)} samples: max |dDisp| = {ed.max():.5f} m
 r = base.predict("B 120x80x6.0", "L 50x5", "Q235", 1, 1, 1)
 m = ref["midas_baseline"]
 out["baseline_base"] = dict(gui_disp=r["max_disp"], ref_disp=m["gnn_disp"], gui_sr=r["max_sr"], ref_sr=m["gnn_sr"])
-print(f"[2] Baseline, base model: disp {r['max_disp']:.4f} (Step05 {m['gnn_disp']:.4f}), SR {r['max_sr']:.4f} (Step05 {m['gnn_sr']:.4f}); MIDAS FEM {m['fem_disp']} mm / {m['fem_sr']}")
+print(f"[2] Baseline, base model: disp {r['max_disp']:.4f} (Step05 {m['gnn_disp']:.4f}), SR {r['max_sr']:.4f} (Step05 {m['gnn_sr']:.4f}); Python FEM {m['fem_disp']} mm / {m['fem_sr']}, MIDAS Gen 3.3015 mm / 0.6100")
 
 ft = PanelSurrogate("phase1_finetuned.pt")
 out["finetuned_points"] = []

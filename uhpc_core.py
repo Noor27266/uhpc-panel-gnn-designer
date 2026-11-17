@@ -14,6 +14,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 ROOT = Path(__file__).resolve().parent
+
+
+def find_file(sub, name):
+    """Return ROOT/sub/name, or ROOT/name when the files were uploaded without folders."""
+    for p in (ROOT / sub / name, ROOT / name):
+        if p.exists():
+            return p
+    raise FileNotFoundError(f"{name} not found in {ROOT / sub} or {ROOT}")
 RHO_STEEL = 7.85e-6          # kg/mm3
 DISP_LIMIT = 20.0            # mm
 SR_LIMIT = 1.0
@@ -114,8 +122,8 @@ class UHPCGATModel(nn.Module):
 # Sections
 # =============================================================================
 def load_sections():
-    box = pd.read_csv(ROOT / "box_sections.csv")
-    ang = pd.read_csv(ROOT / "angle_sections.csv")
+    box = pd.read_csv(find_file("data", "box_sections.csv"))
+    ang = pd.read_csv(find_file("data", "angle_sections.csv"))
     box = box[(box.H_mm > 0) & (box.B_mm > 0) & (box.t_mm > 0) & (box.A_mm2 > 0)].reset_index(drop=True)
     ang = ang[(ang.a_mm > 0) & (ang.t_mm > 0) & (ang.A_mm2 > 0)].reset_index(drop=True)
     # Property mapping verified against the Step05 test-set predictions (max error < 0.001 mm)
@@ -142,7 +150,7 @@ def build_meta(b, a, material, S, Z, X):
 class PanelSurrogate:
     def __init__(self, model_file="phase1_base.pt"):
         torch.set_num_threads(max(1, torch.get_num_threads()))
-        self.geo = json.load(open(ROOT / "panel_geometry.json"))
+        self.geo = json.load(open(find_file("data", "panel_geometry.json")))
         self.coords0 = np.array(self.geo["node_coords"], dtype=np.float64)
         self.beams = np.array(self.geo["beams"], dtype=np.int64)
         self.pids = np.array(self.geo["beam_pids"], dtype=np.int64)
@@ -150,11 +158,11 @@ class PanelSurrogate:
         self.n_nodes = len(self.coords0); self.n_beams = len(self.beams); self.n_sup = len(self.sup_idx)
         self.center = self.coords0.mean(axis=0)
 
-        z = np.load(ROOT / "scaler_params.npz")
+        z = np.load(find_file("models", "scaler_params.npz"))
         self.sc = {k: z[k] for k in z.files}
         self.L_mean = float(self.sc["L_mean"][0]); self.L_std = float(self.sc["L_std"][0])
 
-        ckpt = torch.load(ROOT / model_file, map_location="cpu", weights_only=False)
+        ckpt = torch.load(find_file("models", model_file), map_location="cpu", weights_only=False)
         cfg = ckpt["cfg"]
         self.model = UHPCGATModel(cfg, self.n_nodes, self.n_sup, torch.tensor(self.beams.T, dtype=torch.long))
         self.model.load_state_dict(ckpt["model_state"]); self.model.eval()

@@ -1,4 +1,5 @@
-"""UHPC Panel GNN Designer: Streamlit interface.
+"""UHPC-IDS V1.0: Graph Neural Network and Reinforcement Learning-Based Intelligent Design Software
+for UHPC Wall Panels. Module VI: web graphical user interface (Streamlit).
 
 Run locally:   streamlit run app.py
 """
@@ -10,7 +11,7 @@ from streamlit_js_eval import streamlit_js_eval
 
 from uhpc_core import (BASELINE, DISP_LIMIT, MODELS, SR_LIMIT, PanelSurrogate)
 
-st.set_page_config(page_title="UHPC Panel GNN Designer", page_icon="🏗️", layout="wide",
+st.set_page_config(page_title="UHPC-IDS V1.0", page_icon="🏗️", layout="wide",
                    initial_sidebar_state="expanded")
 
 # =============================================================================
@@ -89,7 +90,7 @@ if "pending" in st.session_state:          # design sent from the optimiser or t
 # Sidebar
 # =============================================================================
 with st.sidebar:
-    st.markdown("### 🏗️ UHPC Panel Designer")
+    st.markdown("### 🏗️ UHPC-IDS V1.0")
     st.markdown('<div class="small">Graph neural network surrogate of the '
                 'steel-framed UHPC wall panel FEM model</div>', unsafe_allow_html=True)
     st.markdown('<div class="side-title">Surrogate model</div>', unsafe_allow_html=True)
@@ -138,7 +139,7 @@ if fname == "phase1_finetuned.pt" and (box != BASELINE["box"] or ang != BASELINE
 # Header and KPIs
 # =============================================================================
 st.markdown(f"""
-<div class="hero"><div><h1>UHPC Wall Panel · GNN Structural Designer</h1></div>
+<div class="hero"><div><h1>UHPC-IDS V1.0 · Intelligent Design Software for UHPC Wall Panels</h1></div>
 <div class="tags"><span class="tag">{model_label.split(':')[0]}</span><span class="tag">{box} + {ang} + {mat}</span><span class="tag">S={S:.2f} · Z={Z:.2f} · X={X:.2f}</span></div></div>
 """, unsafe_allow_html=True)
 for w in warn:
@@ -365,8 +366,9 @@ with tabR:
                     "S = Z = X = 1). Load the baseline design for a like-for-like comparison.", icon="ℹ️")
         st.dataframe(mt.style.format({c: "{:.3f}" for c in mt.columns if c != "Node"} | {"FZ error %": "{:+.2f}"}),
                      width="stretch", hide_index=True)
-        st.markdown(f'<div class="small">MIDAS Gen baseline: max displacement {md["fem_max_disp_mm"]} mm, '
-                    f'max stress ratio {md["fem_max_sr"]}.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="small">Baseline panel: MIDAS Gen max displacement {md["max_disp_mm"]} mm and max stress ratio '
+                    f'{md["max_sr"]:.4f}; Python FEM (Module II) {md["fem_max_disp_mm"]} mm and {md["fem_max_sr"]}.</div>',
+                    unsafe_allow_html=True)
 
 # =============================================================================
 # Baseline comparison
@@ -494,14 +496,18 @@ with tabM:
         st.markdown("The inference pipeline of this app was checked against the original training scripts "
                     "(`python validate_models.py`):")
         st.dataframe(pd.DataFrame({
-            "Check": ["2,000 Step05 test samples (base GNN)", "MIDAS baseline, base GNN",
+            "Check": ["2,000 Step05 test samples (base GNN)", "Baseline panel, base GNN",
                       "Step07 points after fine-tuning (4 cases)"],
             "Reference": ["Step05 predictions", "3.6184 mm / 0.6205", "Step07 GNN results"],
             "This app": ["max diff 0.010 mm / 0.0005 SR", "3.6184 mm / 0.6205", "identical to 4 decimals"]}),
             width="stretch", hide_index=True)
-        st.markdown("#### MIDAS Gen baseline (FEM)")
-        st.markdown("Baseline B 120x80x6.0 + L 50x5 + Q235: max displacement **3.4495 mm**, max stress ratio **0.5981**. "
-                    "Base GNN: 3.6184 mm (+4.9 %), 0.6205 (+3.8 %).")
+        st.markdown("#### Baseline panel: MIDAS Gen and Python FEM")
+        st.dataframe(pd.DataFrame({
+            "Result": ["Max displacement (mm)", "Max stress ratio"],
+            "MIDAS Gen": [3.3015, 0.6100], "Python FEM": [3.4495, 0.5981], "Base GNN": [3.6184, 0.6205]}).style.format(
+            {"MIDAS Gen": "{:.4f}", "Python FEM": "{:.4f}", "Base GNN": "{:.4f}"}), width="stretch", hide_index=True)
+        st.markdown('<div class="small">B 120x80x6.0 + L 50x5 + Q235, S = Z = X = 1.0. The maximum stress ratio occurs at '
+                    'element 15 in all three analyses.</div>', unsafe_allow_html=True)
 
 st.sidebar.markdown('<div class="small" style="margin-top:14px">Predictions are surrogate estimates; confirm the final '
                     'design with FEM.</div>', unsafe_allow_html=True)
