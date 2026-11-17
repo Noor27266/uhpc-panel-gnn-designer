@@ -121,7 +121,7 @@ if isinstance(_vp, list) and len(_vp) == 2 and _vp[1]:
     st.session_state["vp"] = _vp
 VW, VH = st.session_state.get("vp", [1600, 900])
 COMPACT = VH <= 850 or VW <= 1400
-PANEL_H = int(max(320, VH - (395 if COMPACT else 470)))
+PANEL_H = int(max(260, VH - (412 if COMPACT else 442)))
 res = run_prediction(fname, box, ang, mat, S, Z, X)
 base = run_prediction(fname, BASELINE["box"], BASELINE["angle"], BASELINE["material"], S, Z, X)
 ok_d = res["max_disp"] <= disp_lim; ok_s = res["max_sr"] <= sr_lim; ok = ok_d and ok_s
@@ -138,8 +138,7 @@ if fname == "phase1_finetuned.pt" and (box != BASELINE["box"] or ang != BASELINE
 # Header and KPIs
 # =============================================================================
 st.markdown(f"""
-<div class="hero"><div><h1>UHPC Wall Panel · GNN Structural Designer</h1>
-<p>Instant prediction of displacement, member stress ratio and support reactions for a 167-node, 244-member steel frame with 109 UHPC plates</p></div>
+<div class="hero"><div><h1>UHPC Wall Panel · GNN Structural Designer</h1></div>
 <div class="tags"><span class="tag">{model_label.split(':')[0]}</span><span class="tag">{box} + {ang} + {mat}</span><span class="tag">S={S:.2f} · Z={Z:.2f} · X={X:.2f}</span></div></div>
 """, unsafe_allow_html=True)
 for w in warn:
@@ -176,7 +175,23 @@ st.markdown(f'<div class="verdict {v_cls}" style="margin-top:10px">{v_txt} '
 # =============================================================================
 # 3D panel
 # =============================================================================
+def style2d(fig, title, xt, yt, height, legend=False):
+    """Uniform, readable style for the 2D charts (fixed dark text on white, room for the axis labels)."""
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=14, color=INK), x=0.02, xanchor="left", y=0.98, yanchor="top"),
+        height=height, margin=dict(l=62, r=18, t=46, b=56), paper_bgcolor="white", plot_bgcolor="white",
+        font=dict(family="Inter, Arial, sans-serif", size=12, color=INK), showlegend=legend,
+        legend=dict(orientation="h", y=1.0, yanchor="bottom", x=1.0, xanchor="right", font=dict(size=11)),
+        hoverlabel=dict(bgcolor="white", font_size=12))
+    for upd, t in ((fig.update_xaxes, xt), (fig.update_yaxes, yt)):
+        upd(title=dict(text=t, font=dict(size=12, color=INK), standoff=8), automargin=True,
+            tickfont=dict(size=11, color=MUTED), showline=True, linecolor="#c9d1d9", gridcolor="#eef1f4",
+            zeroline=False, ticks="outside", ticklen=4, tickcolor="#c9d1d9")
+    return fig
+
+
 def panel_figure(r, field, deformed, amp, show_plates, show_ids, height=640):
+    import plotly.colors as pc
     geo = base_model.geo
     xyz = np.array(r["xyz"]) / 1000.0
     disp = np.array(r["disp"])
@@ -193,25 +208,22 @@ def panel_figure(r, field, deformed, amp, show_plates, show_ids, height=640):
                 I += [q[0], q[0]]; J += [q[1], q[2]]; K += [q[2], q[3]]
             elif len(q) == 3:
                 I.append(q[0]); J.append(q[1]); K.append(q[2])
-        fig.add_trace(go.Mesh3d(x=x, y=y, z=z, i=I, j=J, k=K, color="#b8c4d0", opacity=0.38,
-                                flatshading=True, hoverinfo="skip", name="UHPC plates", showlegend=True,
-                                lighting=dict(ambient=0.8, diffuse=0.5)))
+        fig.add_trace(go.Mesh3d(x=x, y=y, z=z, i=I, j=J, k=K, color="#c8d3df", opacity=0.45, flatshading=True,
+                                hoverinfo="skip", name="UHPC plates", showlegend=True,
+                                lighting=dict(ambient=0.9, diffuse=0.3, specular=0.05)))
 
     if field == "Stress ratio":
-        val = np.array(r["sr"]); cmax = max(1.0, float(val.max())); title = "Stress<br>ratio"
-        cs = [[0, "#2166ac"], [0.35, "#67a9cf"], [0.6, "#fddb6d"], [0.8, "#f4a259"], [1.0, "#b2182b"]]
+        val = np.array(r["sr"]); cmax = max(1.0, float(val.max())); title = "Stress ratio"
+        cs = [[0, "#2166ac"], [0.35, "#4fa3d1"], [0.6, "#f2c94c"], [0.8, "#f08a24"], [1.0, "#b2182b"]]
     else:
         nd = disp[:, 4]; val = 0.5 * (nd[beams[:, 0]] + nd[beams[:, 1]]); cmax = max(float(val.max()), 1e-6)
-        title = "Disp.<br>(mm)"; cs = "Turbo"
-    nb = 14
+        title = "Disp. (mm)"; cs = pc.sequential.Turbo
+    nb = 16
     bins = np.clip((val / cmax * nb).astype(int), 0, nb - 1)
-    import plotly.colors as pc
-    cols = pc.sample_colorscale(cs if isinstance(cs, list) else getattr(pc.sequential, cs), [(b + 0.5) / nb for b in range(nb)])
+    cols = pc.sample_colorscale(cs, [(b + 0.5) / nb for b in range(nb)])
     for b in range(nb):
         idx = np.where(bins == b)[0]
-        if len(idx) == 0:
-            continue
-        for pid, wdt in ((1, 7), (2, 4)):
+        for pid, wdt in ((1, 6), (2, 3)):
             sel = idx[pids[idx] == pid]
             if len(sel) == 0:
                 continue
@@ -221,44 +233,56 @@ def panel_figure(r, field, deformed, amp, show_plates, show_ids, height=640):
             Z_[0::3] = z[beams[sel, 0]]; Z_[1::3] = z[beams[sel, 1]]
             fig.add_trace(go.Scatter3d(x=X_, y=Y_, z=Z_, mode="lines", line=dict(color=cols[b], width=wdt),
                                        hoverinfo="skip", showlegend=False))
-    # hover points at member mid-points
+    # hover targets at member mid-points (same colour as the member, so they blend into the line)
     mid = 0.5 * (xyz[beams[:, 0]] + xyz[beams[:, 1]])
     sec = np.where(pids == 1, r["box"]["Section"], r["ang"]["Section"])
-    txt = [f"<b>Element {e}</b><br>{s}<br>L = {l:.0f} mm<br>SR = {v:.3f}" for e, s, l, v in
-           zip(geo["beam_eids"], sec, r["L"], r["sr"])]
+    txt = [f"<b>Element {e}</b> ({'box' if p == 1 else 'angle'})<br>{s}<br>L = {l:.0f} mm<br>SR = {v:.3f}<br>"
+           f"Disp = {dv:.2f} mm" for e, p, s, l, v, dv in
+           zip(geo["beam_eids"], pids, sec, r["L"], r["sr"], 0.5 * (disp[beams[:, 0], 4] + disp[beams[:, 1], 4]))]
     fig.add_trace(go.Scatter3d(x=mid[:, 0], y=mid[:, 1], z=mid[:, 2], mode="markers",
-                               marker=dict(size=2.5, color=val, colorscale=cs, cmin=0, cmax=cmax, opacity=0.9,
-                                           colorbar=dict(title=dict(text=title, font=dict(size=12)), thickness=14,
-                                                         len=0.62, x=1.0, tickfont=dict(size=11))),
-                               text=txt, hovertemplate="%{text}<extra></extra>", name="Members", showlegend=False))
+                               marker=dict(size=2.5, color=[cols[b] for b in bins], opacity=1),
+                               text=txt, hovertemplate="%{text}<extra></extra>", showlegend=False))
+    # colour bar (dummy trace)
+    fig.add_trace(go.Scatter3d(x=[x[0]], y=[y[0]], z=[z[0]], mode="markers", hoverinfo="skip", showlegend=False,
+                               marker=dict(size=0.1, color=[0], colorscale=cs, cmin=0, cmax=cmax, opacity=0,
+                                           colorbar=dict(title=dict(text=title, side="right", font=dict(size=12, color=INK)),
+                                                         thickness=12, len=0.75, x=0.99, y=0.48,
+                                                         tickfont=dict(size=11, color=INK), outlinewidth=0))))
     # supports
     si = base_model.sup_idx
     fig.add_trace(go.Scatter3d(x=x[si], y=y[si], z=z[si], mode="markers", name="Supports",
-                               marker=dict(size=6, symbol="diamond", color="#0d1b2a", line=dict(color="white", width=1)),
-                               text=[f"<b>Support node {n}</b><br>FZ(DL) = {f:.2f} kN" for n, f in
+                               marker=dict(size=4, symbol="diamond", color="#0d1b2a", line=dict(color="white", width=1)),
+                               text=[f"<b>Support node {n}</b><br>FZ (DL) = {f:.2f} kN" for n, f in
                                      zip(geo["support_node_ids"], np.array(r["rxn_DL"])[:, 2])],
                                hovertemplate="%{text}<extra></extra>"))
-    # critical points
+    # critical points (values shown in the title line, not on the model)
     i_d = r["i_disp"]; i_s = r["i_sr"]
-    fig.add_trace(go.Scatter3d(x=[x[i_d]], y=[y[i_d]], z=[z[i_d]], mode="markers+text", name="Max displacement",
-                               marker=dict(size=9, color="#ff7b00", line=dict(color="white", width=2)),
-                               text=[f"  {r['max_disp']:.2f} mm"], textfont=dict(size=12, color="#ff7b00"),
+    fig.add_trace(go.Scatter3d(x=[x[i_d]], y=[y[i_d]], z=[z[i_d]], mode="markers", name="Max displacement",
+                               marker=dict(size=7, color="#ff7b00", line=dict(color="white", width=2)),
                                hovertemplate=f"<b>Max displacement</b><br>node {geo['node_ids'][i_d]}<br>{r['max_disp']:.2f} mm<extra></extra>"))
     m = mid[i_s]
-    fig.add_trace(go.Scatter3d(x=[m[0]], y=[m[1]], z=[m[2]], mode="markers+text", name="Max stress ratio",
-                               marker=dict(size=9, color="#b2182b", symbol="square", line=dict(color="white", width=2)),
-                               text=[f"  SR {r['max_sr']:.3f}"], textfont=dict(size=12, color="#b2182b"),
+    fig.add_trace(go.Scatter3d(x=[m[0]], y=[m[1]], z=[m[2]], mode="markers", name="Max stress ratio",
+                               marker=dict(size=7, color="#c00020", symbol="square", line=dict(color="white", width=2)),
                                hovertemplate=f"<b>Max stress ratio</b><br>element {geo['beam_eids'][i_s]}<br>{r['max_sr']:.3f}<extra></extra>"))
     if show_ids:
         fig.add_trace(go.Scatter3d(x=x, y=y, z=z, mode="text", text=[str(n) for n in geo["node_ids"]],
-                                   textfont=dict(size=8, color="#59636e"), hoverinfo="skip", showlegend=False))
-    ax = dict(showbackground=True, backgroundcolor="#f6f8fa", gridcolor="#dfe3e8", zerolinecolor="#dfe3e8",
-              tickfont=dict(size=10), title_font=dict(size=12))
+                                   textfont=dict(size=9, color="#30363d"), hoverinfo="skip", showlegend=False))
+    xr = float(np.ptp(x)); zr = float(np.ptp(z)); yr = float(np.ptp(y))
+    ax = dict(showbackground=False, gridcolor="#e6eaef", zeroline=False, showspikes=False,
+              tickfont=dict(size=10, color=MUTED), title_font=dict(size=12, color=INK))
     fig.update_layout(
-        height=height, margin=dict(l=0, r=0, t=8, b=0), paper_bgcolor="white",
-        scene=dict(xaxis=dict(title="X (m)", **ax), yaxis=dict(title="Y (m)", **ax), zaxis=dict(title="Z (m)", **ax),
-                   aspectmode="data", camera=dict(eye=dict(x=1.05, y=-1.75, z=0.8), up=dict(x=0, y=0, z=1), projection=dict(type="orthographic"))),
-        legend=dict(orientation="h", y=1.02, x=0.0, font=dict(size=12), bgcolor="rgba(255,255,255,0.7)"),
+        height=height, margin=dict(l=0, r=0, t=34, b=0), paper_bgcolor="white",
+        title=dict(text=f"<span style='color:#ff7b00'>●</span> max displacement <b>{r['max_disp']:.2f} mm</b> (node {geo['node_ids'][i_d]})"
+                        f"   <span style='color:#c00020'>■</span> max stress ratio <b>{r['max_sr']:.3f}</b> (element {geo['beam_eids'][i_s]})",
+                   font=dict(size=13, color=INK), x=0.02, xanchor="left", y=0.985, yanchor="top"),
+        scene=dict(xaxis=dict(title="X (m)", nticks=6, **ax), zaxis=dict(title="Z (m)", nticks=6, **ax),
+                   yaxis=dict(title="", showticklabels=False, nticks=2, **ax),
+                   aspectmode="manual", aspectratio=dict(x=2.3, y=2.3 * max(0.08, 3 * yr / xr), z=2.3 * zr / xr),
+                   domain=dict(x=[0, 0.9], y=[0.07, 0.97]),
+                   camera=dict(eye=dict(x=0.45, y=-1.3, z=0.38), center=dict(x=0, y=0, z=-0.05),
+                               up=dict(x=0, y=0, z=1), projection=dict(type="orthographic"))),
+        legend=dict(orientation="h", y=0.0, yanchor="bottom", x=0.02, font=dict(size=11, color=INK),
+                    bgcolor="rgba(255,255,255,0.85)", itemsizing="constant"),
         hoverlabel=dict(bgcolor="white", font_size=12))
     return fig
 
@@ -272,26 +296,26 @@ with tab3d:
     deformed = c2.toggle("Deformed shape", value=False)
     amp = c3.slider("Amplification", 10, 500, 100, 10, disabled=not deformed, label_visibility="collapsed", format="×%d")
     show_plates = c4.toggle("UHPC plates", value=True)
-    show_ids = c5.toggle("Node numbers", value=False)
-    st.plotly_chart(panel_figure(res, field, deformed, amp, show_plates, show_ids, PANEL_H), width="stretch", key="panel3d",
-                    theme=None, config=dict(displaylogo=False, responsive=True, toImageButtonOptions=dict(format="png", scale=2, filename="uhpc_panel")))
-    st.caption("Drag to rotate, scroll to zoom, hover a member or support for values. Thick lines: box main frame; "
-               "thin lines: angle secondary members.")
-
-    g1, g2 = st.columns(2)
+    show_ids = c5.toggle("Node numbers", value=False,
+                         help="3D view: drag to rotate, scroll to zoom, hover a member or support for its values. "
+                              "Thick lines: box main frame; thin lines: angle secondary members.")
+    p1, p2, p3 = st.columns([2.15, 1, 1], gap="small")
+    p1.plotly_chart(panel_figure(res, field, deformed, amp, show_plates, show_ids, PANEL_H), width="stretch", key="panel3d",
+                    theme=None, config=dict(displaylogo=False, toImageButtonOptions=dict(format="png", scale=2, filename="uhpc_panel")))
     sr = np.array(res["sr"]); d = np.array(res["disp"])
-    fig_h = go.Figure(go.Histogram(x=sr, nbinsx=30, marker_color=ACCENT, opacity=0.85))
-    fig_h.add_vline(x=sr_lim, line_dash="dash", line_color=BAD, annotation_text="limit", annotation_font_size=11)
-    fig_h.update_layout(title=dict(text="Member stress ratio distribution", font=dict(size=14)), height=300,
-                        margin=dict(l=10, r=10, t=40, b=10), xaxis_title="Stress ratio", yaxis_title="Members",
-                        plot_bgcolor="white", bargap=0.05)
-    g1.plotly_chart(fig_h, width="stretch", theme=None)
-    comp = pd.DataFrame({"Component": ["DX", "DY", "DZ", "DXY", "DXYZ"], "Max |d| (mm)": np.abs(d).max(axis=0)})
-    fig_c = go.Figure(go.Bar(x=comp.Component, y=comp["Max |d| (mm)"], marker_color=["#8fb3d9"] * 4 + [ACCENT],
-                             text=[f"{v:.2f}" for v in comp["Max |d| (mm)"]], textposition="outside"))
-    fig_c.update_layout(title=dict(text="Maximum nodal displacement by component", font=dict(size=14)), height=300,
-                        margin=dict(l=10, r=10, t=40, b=10), yaxis_title="mm", plot_bgcolor="white")
-    g2.plotly_chart(fig_c, width="stretch", theme=None)
+    fig_h = go.Figure(go.Histogram(x=sr, xbins=dict(start=0, size=0.025), marker=dict(color=ACCENT, line=dict(color="white", width=0.5))))
+    fig_h.add_vline(x=sr_lim, line_dash="dash", line_color=BAD, line_width=2)
+    fig_h.add_annotation(x=sr_lim, y=1, yref="paper", text="limit", showarrow=False, xanchor="right", yanchor="top",
+                         font=dict(size=11, color=BAD), xshift=-4)
+    style2d(fig_h, "Member stress ratios", "Stress ratio", "Number of members", PANEL_H)
+    fig_h.update_xaxes(range=[0, max(sr_lim, float(sr.max())) * 1.05])
+    p2.plotly_chart(fig_h, width="stretch", theme=None, config=dict(displaylogo=False))
+    comps = ["DX", "DY", "DZ", "DXY", "DXYZ"]; dm = np.abs(d).max(axis=0)
+    fig_c = go.Figure(go.Bar(x=comps, y=dm, marker_color=["#8fb3d9"] * 4 + [ACCENT], text=[f"{v:.2f}" for v in dm],
+                             textposition="outside", textfont=dict(size=11, color=INK), cliponaxis=False))
+    style2d(fig_c, "Max displacement by component", "Component", "Displacement (mm)", PANEL_H)
+    fig_c.update_yaxes(range=[0, float(dm.max()) * 1.18])
+    p3.plotly_chart(fig_c, width="stretch", theme=None, config=dict(displaylogo=False))
 
 # =============================================================================
 # Reactions
@@ -323,9 +347,8 @@ with tabR:
         fig_r = go.Figure()
         for c, colr in [("FZ DL", ACCENT), ("FY WL", "#f4a259"), ("FZ gov", "#59636e")]:
             fig_r.add_trace(go.Bar(x=T.Node.astype(str), y=T[c], name=c, marker_color=colr))
-        fig_r.update_layout(barmode="group", height=330, margin=dict(l=10, r=10, t=30, b=10), plot_bgcolor="white",
-                            xaxis_title="Support node", yaxis_title="kN", legend=dict(orientation="h", y=1.12),
-                            xaxis=dict(type="category"))
+        style2d(fig_r, "Support reactions (DL, WL, governing)", "Support node", "Reaction (kN)", 360, legend=True)
+        fig_r.update_layout(barmode="group"); fig_r.update_xaxes(type="category")
         st.plotly_chart(fig_r, width="stretch", theme=None)
         st.dataframe(T.style.format(fmt), width="stretch", hide_index=True, height=420)
         st.download_button("⬇ Download reactions (CSV)", T.to_csv(index=False).encode(), "uhpc_support_reactions.csv",
@@ -373,8 +396,8 @@ with tabB:
                         go.Bar(name="Current", x=lab, y=cv, marker_color=ACCENT, text=[f"{v:.2f}" for v in cv],
                                textposition="outside")])
         fb.add_hline(y=1.0, line_dash="dash", line_color=BAD)
-        fb.update_layout(barmode="group", height=340, margin=dict(l=10, r=10, t=30, b=10), plot_bgcolor="white",
-                         yaxis_title="Utilisation / weight ratio", legend=dict(orientation="h", y=1.12))
+        style2d(fb, "Utilisation and weight ratio", "", "Ratio", 360, legend=True)
+        fb.update_layout(barmode="group"); fb.update_traces(textfont=dict(size=11, color=INK), cliponaxis=False)
         st.plotly_chart(fb, width="stretch", theme=None)
     sb = np.array(base["sr"]); sc = np.array(res["sr"])
     fs = go.Figure(go.Scatter(x=sb, y=sc, mode="markers", marker=dict(size=6, color=np.where(base_model.pids == 1, ACCENT, "#f4a259")),
@@ -382,9 +405,8 @@ with tabB:
                               hovertemplate="%{text}<br>baseline %{x:.3f}<br>current %{y:.3f}<extra></extra>"))
     mx = max(sb.max(), sc.max()) * 1.05
     fs.add_trace(go.Scatter(x=[0, mx], y=[0, mx], mode="lines", line=dict(color="#59636e", dash="dash"), hoverinfo="skip"))
-    fs.update_layout(title=dict(text="Member stress ratio: current vs baseline (blue box, orange angle)", font=dict(size=14)),
-                     height=360, showlegend=False, plot_bgcolor="white", margin=dict(l=10, r=10, t=40, b=10),
-                     xaxis_title="Baseline SR", yaxis_title="Current SR")
+    style2d(fs, "Member stress ratio: current vs baseline (blue box, orange angle)", "Baseline stress ratio",
+            "Current stress ratio", 380)
     st.plotly_chart(fs, width="stretch", theme=None)
 
 # =============================================================================
@@ -440,11 +462,9 @@ with tabO:
                                           text=sub.box + " + " + sub.angle + " + " + sub.material,
                                           hovertemplate="%{text}<br>%{x:,.0f} kg<br>%{y:.2f} mm<extra></extra>"))
             fo.add_hline(y=cfg[3] * (1 - cfg[5] / 100), line_dash="dash", line_color=BAD)
-            fo.update_layout(title=dict(text=f"{info['evaluated']:,} designs evaluated "
-                                             f"({info['kept_boxes']} box sections kept after screening)", font=dict(size=13)),
-                             height=420, plot_bgcolor="white", margin=dict(l=10, r=10, t=40, b=10),
-                             xaxis_title="Steel weight (kg)", yaxis_title="Max displacement (mm)",
-                             yaxis=dict(range=[0, cfg[3] * 2]), legend=dict(orientation="h", y=-0.18, x=0.6))
+            style2d(fo, f"{info['evaluated']:,} designs evaluated ({info['kept_boxes']} box sections kept)",
+                    "Steel weight (kg)", "Max displacement (mm)", 440, legend=True)
+            fo.update_yaxes(range=[0, cfg[3] * 2])
             t2.plotly_chart(fo, width="stretch", theme=None)
 
 # =============================================================================
@@ -483,6 +503,5 @@ with tabM:
         st.markdown("Baseline B 120x80x6.0 + L 50x5 + Q235: max displacement **3.4495 mm**, max stress ratio **0.5981**. "
                     "Base GNN: 3.6184 mm (+4.9 %), 0.6205 (+3.8 %).")
 
-st.markdown(f'<div class="small" style="text-align:center;margin-top:24px">UHPC Panel GNN Designer · '
-            f'predictions are surrogate estimates and should be confirmed by FEM for final design.</div>',
-            unsafe_allow_html=True)
+st.sidebar.markdown('<div class="small" style="margin-top:14px">Predictions are surrogate estimates; confirm the final '
+                    'design with FEM.</div>', unsafe_allow_html=True)
